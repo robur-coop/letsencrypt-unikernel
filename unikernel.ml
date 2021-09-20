@@ -131,28 +131,22 @@ module Main (R : Mirage_random.S) (S : Mirage_stack.V4V6) (Http_client: Cohttp_l
 
     module HTTP_solver = struct
       let prefix = ".well-known", "acme-challenge"
-      let tokens = Hashtbl.create 1
 
-      let dispatch request _body =
+      let dispatch token content request _body =
         let path = Uri.path (Cohttp.Request.uri request) in
         Logs.info (fun m -> m "let's encrypt dispatcher %s" path);
         match Astring.String.cuts ~sep:"/" ~empty:false path with
-        | [ p1; p2; token ] when
-            String.equal p1 (fst prefix) && String.equal p2 (snd prefix) ->
-          begin
-            match Hashtbl.find_opt tokens token with
-            | Some data ->
-              let headers =
-                Cohttp.Header.init_with "content-type" "application/octet-stream"
-              in
-              Http.respond ~headers ~status:`OK ~body:(`String data) ()
-            | None -> Http.respond ~status:`Not_found ~body:`Empty ()
-          end
+        | [ p1; p2; token' ] when
+            String.equal p1 (fst prefix) && String.equal p2 (snd prefix) &&
+            String.equal token token' ->
+          let headers =
+            Cohttp.Header.init_with "content-type" "application/octet-stream"
+          in
+          Http.respond ~headers ~status:`OK ~body:(`String content) ()
         | _ -> Http.respond ~status:`Not_found ~body:`Empty ()
 
       let solver http_server _host ~prefix:_ ~token ~content =
-        Hashtbl.replace tokens token content;
-        Lwt.async (fun () -> http_server (`TCP 80) (serve dispatch));
+        Lwt.async (fun () -> http_server (`TCP 80) (serve (dispatch token content)));
         Lwt.return (Ok ())
     end
 
