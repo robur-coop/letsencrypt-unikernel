@@ -32,6 +32,15 @@ let dns_server =
   let doc = Key.Arg.info ~doc:"dns server IP" ["dns-server"] in
   Key.(create "dns-server" Arg.(opt (some ip_address) None doc))
 
+let key_type =
+  let doc = Key.Arg.info ~doc:"certificate key type" ["key-type"] in
+  Key.(create "key-type" Arg.(opt string "RSA" doc))
+
+let bits =
+  let doc = Key.Arg.info ~doc:"certificate public key bits" ["bits"] in
+  Key.(create "bits" Arg.(opt int 4096 doc))
+
+
 let packages = [
   package "cohttp-mirage";
   package "tls-mirage";
@@ -55,6 +64,7 @@ let () =
       abstract hostname; abstract production; abstract cert_seed;
       abstract account_seed; abstract email; abstract challenge;
       abstract dns_key; abstract dns_server;
+      abstract key_type; abstract bits;
     ])
   in
   register "letsencrypt" [

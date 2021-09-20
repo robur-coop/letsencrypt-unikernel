@@ -199,17 +199,10 @@ module Main (R : Mirage_random.S) (S : Mirage_stack.V4V6) (Http_client: Cohttp_l
       in
       X509.Signing_request.create cn key
 
-    let provision host stack http_server ctx dns =
+    let provision host stack http_server ctx dns key_type =
       let open Lwt_result.Infix in
-      let endpoint =
-        if Key_gen.production () then
-          Letsencrypt.letsencrypt_production_url
-        else
-          Letsencrypt.letsencrypt_staging_url
-      and email = Key_gen.email ()
-      and seed = Key_gen.account_seed ()
-      in
-      let priv = `RSA (gen_rsa ?seed:(Key_gen.cert_seed ()) ()) in
+      let seed = Option.map Cstruct.of_string (Key_gen.cert_seed ()) in
+      let priv = X509.Private_key.generate ?seed ~bits:(Key_gen.bits ()) key_type in
       match csr priv host with
       | Error (`Msg err) ->
         Logs.err (fun m -> m "couldn't create signing request %s" err);
@@ -235,7 +228,15 @@ module Main (R : Mirage_random.S) (S : Mirage_stack.V4V6) (Http_client: Cohttp_l
             Logs.info (fun m -> m "unsupported challenge %s" s);
             exit argument_error
         in
-        Acme.initialise ~ctx ~endpoint ?email (gen_rsa ?seed ()) >>= fun le ->
+        let endpoint =
+          if Key_gen.production () then
+            Letsencrypt.letsencrypt_production_url
+          else
+            Letsencrypt.letsencrypt_staging_url
+        and email = Key_gen.email ()
+        and account_key = gen_rsa ?seed:(Key_gen.account_seed ()) ()
+        in
+        Acme.initialise ~ctx ~endpoint ?email account_key >>= fun le ->
         let sleep sec = Time.sleep_ns (Duration.of_sec sec) in
         Acme.sign_certificate ~ctx solver le sleep csr >|= fun certs ->
         `Single (certs, priv)
@@ -272,6 +273,13 @@ module Main (R : Mirage_random.S) (S : Mirage_stack.V4V6) (Http_client: Cohttp_l
           exit argument_error
         | Some (zone, _) -> Some (dns_ip, zone, keyname, dnskey)
 
+  let key_type () =
+    match X509.Key_type.of_string (Key_gen.key_type ()) with
+    | Ok kt -> kt
+    | Error `Msg msg ->
+      Logs.err (fun m -> m "cannot decode key type %s: %s" (Key_gen.key_type ()) msg);
+      exit argument_error
+
   let start () stack http_client http_server () () =
     let host = hostname () in
     let dns = dns_info () in
@@ -284,7 +292,7 @@ module Main (R : Mirage_random.S) (S : Mirage_stack.V4V6) (Http_client: Cohttp_l
        | Ok () -> ()
        | Error () -> exit argument_error) >>= fun () ->
     Logs.info (fun m -> m "provisioning a lets encrypt certificate");
-    LE.provision host stack http_server http_client dns >>= (function
+    LE.provision host stack http_server http_client dns (key_type ()) >>= (function
         | Ok certificates ->
           Logs.info (fun m -> m "received certificate chain");
           let tls = `TLS (Tls.Config.server ~certificates (), `TCP 443) in
