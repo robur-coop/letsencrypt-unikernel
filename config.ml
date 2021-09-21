@@ -10,11 +10,27 @@ let production =
 
 let cert_seed =
   let doc = Key.Arg.info ~doc:"Let's encrypt certificate seed." ["cert-seed"] in
-  Key.(create "cert_seed" Arg.(opt (some string) None doc))
+  Key.(create "cert-seed" Arg.(opt (some string) None doc))
+
+let cert_key_type =
+  let doc = Key.Arg.info ~doc:"certificate key type" ["cert-key-type"] in
+  Key.(create "cert-key-type" Arg.(opt string "RSA" doc))
+
+let cert_bits =
+  let doc = Key.Arg.info ~doc:"certificate public key bits" ["cert-bits"] in
+  Key.(create "cert-bits" Arg.(opt int 4096 doc))
 
 let account_seed =
   let doc = Key.Arg.info ~doc:"Let's encrypt account seed." ["account-seed"] in
-  Key.(create "account_seed" Arg.(opt (some string) None doc))
+  Key.(create "account-seed" Arg.(opt (some string) None doc))
+
+let account_key_type =
+  let doc = Key.Arg.info ~doc:"account key type" ["account-key-type"] in
+  Key.(create "account-key-type" Arg.(opt string "RSA" doc))
+
+let account_bits =
+  let doc = Key.Arg.info ~doc:"account public key bits" ["account-bits"] in
+  Key.(create "account-bits" Arg.(opt int 4096 doc))
 
 let email =
   let doc = Key.Arg.info ~doc:"Let's encrypt E-Mail." ["email"] in
@@ -32,20 +48,12 @@ let dns_server =
   let doc = Key.Arg.info ~doc:"dns server IP" ["dns-server"] in
   Key.(create "dns-server" Arg.(opt (some ip_address) None doc))
 
-let key_type =
-  let doc = Key.Arg.info ~doc:"certificate key type" ["key-type"] in
-  Key.(create "key-type" Arg.(opt string "RSA" doc))
-
-let bits =
-  let doc = Key.Arg.info ~doc:"certificate public key bits" ["bits"] in
-  Key.(create "bits" Arg.(opt int 4096 doc))
-
 
 let packages = [
   package "cohttp-mirage";
   package "tls-mirage";
   package "logs";
-  package "letsencrypt";
+  package ~min:"0.4.0" "letsencrypt";
   package "letsencrypt-dns";
   package "dns-tsig";
   package "dns-server";
@@ -61,10 +69,11 @@ let http_cli = cohttp_client (resolver_dns stack) conduit_
 
 let () =
   let keys = Key.([
-      abstract hostname; abstract production; abstract cert_seed;
-      abstract account_seed; abstract email; abstract challenge;
+      abstract hostname; abstract production;
+      abstract cert_seed; abstract cert_key_type; abstract cert_bits;
+      abstract account_seed; abstract account_key_type; abstract account_bits;
+      abstract email; abstract challenge;
       abstract dns_key; abstract dns_server;
-      abstract key_type; abstract bits;
     ])
   in
   register "letsencrypt" [
